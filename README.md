@@ -1,4 +1,4 @@
-# Generalized Interpolating Discrete Diffusion
+# Generalized Interpolating Discrete Diffusion, fork
 
 By Dimitri von Rütte, Janis Fluri, Yuhui Ding, Antonio Orvieto, Bernhard Schölkopf, Thomas Hofmann
 

@@ -141,11 +141,11 @@ class MaskedDiffusion(NoiseSchedule):
 def get_noise_schedule(config, tokenizer):
     if config.model.type == "autoregressive":
         return None
-    elif config.model.diffusion_process == "gidd":
+    elif config.model.forward_process == "ours":
         noise_schedule = HybridDiffusion(tokenizer, p_uniform=config.model.p_uniform)
-    elif config.model.diffusion_process == "mdlm":
+    elif config.model.forward_process == "mdlm":
         noise_schedule = MaskedDiffusion(tokenizer)
     else:
-        raise ValueError(f"Unknown diffusion process: {config.model.diffusion_process}")
+        raise ValueError(f"Unknown diffusion process: {config.model.forward_process}")
 
     return noise_schedule

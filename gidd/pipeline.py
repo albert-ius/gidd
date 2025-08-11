@@ -49,6 +49,7 @@ class GiddPipeline(nn.Module):
         num_samples: int = 1,
         num_inference_steps: int = 128,
         show_progress: bool = True,
+        decode: bool = True,
         dtype: torch.dtype = torch.bfloat16,
     ) -> list[str]:
         device = next(self.model.parameters()).device
@@ -57,7 +58,7 @@ class GiddPipeline(nn.Module):
                 num_samples=num_samples,
                 num_denoising_steps=num_inference_steps,
                 max_length=self.config.max_seq_len,
-                decode=True,
+                decode=decode,
                 show_progress=show_progress,
             )
     

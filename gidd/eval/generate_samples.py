@@ -6,6 +6,9 @@ from gidd.utils import parse_dtype
 from gidd.checkpoints import load_checkpoint
 from gidd.sampling import get_sampler
 
+import torch._dynamo
+torch._dynamo.config.suppress_errors = True
+
 
 @hydra.main(config_path="../configs", config_name="generate", version_base="1.1")
 def main(args):

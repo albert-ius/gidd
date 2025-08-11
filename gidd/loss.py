@@ -141,7 +141,7 @@ class MDLMLoss(Loss):
 
 
 def get_loss(config, tokenizer, noise_schedule):
-    if config.loss.loss_type == "gidd":
+    if config.loss.loss_type == "mixed_kl":
         return GiddLoss(config, tokenizer, noise_schedule)
     elif config.loss.loss_type == "mdlm":
         return MDLMLoss(config, tokenizer, noise_schedule)

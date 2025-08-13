@@ -224,7 +224,7 @@ class LabelEmbedder(nn.Module):
 
 
 class DDiTBlock(nn.Module):
-  def __init__(self, dim, n_heads, cond_dim, mlp_ratio=4, dropout=0.1):
+  def __init__(self, dim, n_heads, cond_dim, cond_dim_embedding=None, mlp_ratio=4, dropout=0.1):
     super().__init__()
     self.n_heads = n_heads
     self.dim = dim
@@ -244,9 +244,14 @@ class DDiTBlock(nn.Module):
     self.dropout2 = nn.Dropout(dropout)
     self.dropout = dropout
 
+    #sigma conditioning (timestep)
     self.adaLN_modulation = nn.Linear(cond_dim, 6 * dim, bias=True)
     self.adaLN_modulation.weight.data.zero_()
     self.adaLN_modulation.bias.data.zero_()
+
+    #condition embedding conditioning
+    if cond_dim_embedding is not None:
+      self.cond_embedding_modulation = nn.Linear(cond_dim_embedding, 6 * dim, bias=True)
 
   def flops(self, seq_len=128):
     per_token_flops = 0
@@ -265,14 +270,32 @@ class DDiTBlock(nn.Module):
       return bias_dropout_add_scale_fused_inference
 
 
-  def forward(self, x, rotary_cos_sin, c, seqlens=None):
+  def forward(self, x, rotary_cos_sin, c, cond=None, seqlens=None):
     batch_size, seq_len = x.shape[0], x.shape[1]
 
     bias_dropout_scale_fn = self._get_bias_dropout_scale()
 
-    (shift_msa, scale_msa, gate_msa, shift_mlp,
-     scale_mlp, gate_mlp) = self.adaLN_modulation(c)[:, None].chunk(6, dim=2)
-
+    # Process sigma conditioning
+    (shift_msa_sigma, scale_msa_sigma, gate_msa_sigma, shift_mlp_sigma,
+     scale_mlp_sigma, gate_mlp_sigma) = self.adaLN_modulation(c)[:, None].chunk(6, dim=2)
+    
+    if cond is not None:
+      # Process condition embedding conditioning
+      (shift_msa_cond, scale_msa_cond, gate_msa_cond, shift_mlp_cond,
+      scale_mlp_cond, gate_mlp_cond) = self.cond_embedding_modulation(cond)[:, None].chunk(6, dim=2)
+    
+      # Combine conditioning parameters
+      shift_msa = shift_msa_sigma + shift_msa_cond
+      scale_msa = scale_msa_sigma + scale_msa_cond
+      gate_msa = gate_msa_sigma + gate_msa_cond
+      shift_mlp = shift_mlp_sigma + shift_mlp_cond
+      scale_mlp = scale_mlp_sigma + scale_mlp_cond
+      gate_mlp = gate_mlp_sigma + gate_mlp_cond
+    else:
+      (shift_msa, scale_msa, gate_msa, shift_mlp,
+      scale_mlp, gate_mlp) = (shift_msa_sigma, scale_msa_sigma,
+                              gate_msa_sigma, shift_mlp_sigma,
+                              scale_mlp_sigma, gate_mlp_sigma)
     # attention operation
     x_skip = x
     x = modulate_fused(self.norm1(x), shift_msa, scale_msa)
@@ -329,29 +352,49 @@ class EmbeddingLayer(nn.Module):
 
 
 class DDitFinalLayer(nn.Module):
-  def __init__(self, hidden_size, out_channels, cond_dim):
+  def __init__(self, hidden_size, out_channels, cond_dim, cond_dim_embedding=None):
     super().__init__()
     self.norm_final = LayerNorm(hidden_size)
     self.linear = nn.Linear(hidden_size, out_channels)
     self.linear.weight.data.zero_()
     self.linear.bias.data.zero_()
 
+    # Sigma conditioning (timestep)
     self.adaLN_modulation = nn.Linear(cond_dim,
                                       2 * hidden_size,
                                       bias=True)
     self.adaLN_modulation.weight.data.zero_()
     self.adaLN_modulation.bias.data.zero_()
 
+        
+    # Condition embedding conditioning
+    if cond_dim_embedding is not None:
+      self.cond_embedding_modulation = nn.Linear(cond_dim_embedding,
+                                               2 * hidden_size,
+                                               bias=True)
 
-  def forward(self, x, c):
-    shift, scale = self.adaLN_modulation(c)[:, None].chunk(2, dim=2)
+
+  def forward(self, x, c, cond=None):
+    # Process sigma conditioning
+    shift_sigma, scale_sigma = self.adaLN_modulation(c)[:, None].chunk(2, dim=2)
+    
+    # Process condition embedding conditioning
+    if self.cond_embedding_modulation is not None:
+      shift_cond, scale_cond = self.cond_embedding_modulation(cond)[:, None].chunk(2, dim=2)
+
+      # Combine conditioning parameters
+      shift = shift_sigma + shift_cond
+      scale = scale_sigma + scale_cond
+    else:
+      shift, scale = shift_sigma, scale_sigma
+    
     x = modulate_fused(self.norm_final(x), shift, scale)
     x = self.linear(x)
     return x
 
 
 class DIT(nn.Module, huggingface_hub.PyTorchModelHubMixin):
-  def __init__(self, config, vocab_size: int):
+  def __init__(self, config, vocab_size: int, cond_dim: int = None):
     super().__init__()
     if type(config) == dict:
       config = omegaconf.OmegaConf.create(config)
@@ -362,6 +405,12 @@ class DIT(nn.Module, huggingface_hub.PyTorchModelHubMixin):
 
     self.vocab_embed = EmbeddingLayer(config.model.hidden_size, self.rounded_vocab_size)
     self.sigma_map = TimestepEmbedder(config.model.cond_dim)
+
+    if cond_dim is not None:
+      self.cond_embed = nn.Linear(cond_dim, config.model.cond_dim_embedding)
+    else:
+      self.cond_embed = None
+
     self.rotary_emb = Rotary(
       config.model.hidden_size // config.model.n_heads,
       max_seq_len=config.model.max_seq_len,
@@ -372,13 +421,15 @@ class DIT(nn.Module, huggingface_hub.PyTorchModelHubMixin):
       blocks.append(DDiTBlock(config.model.hidden_size,
                               config.model.n_heads,
                               config.model.cond_dim,
+                              None if cond_dim is None else self.model.cond_dim_embedding,
                               dropout=config.model.dropout))
     self.blocks = nn.ModuleList(blocks)
 
     self.output_layer = DDitFinalLayer(
       config.model.hidden_size,
       self.rounded_vocab_size,
-      config.model.cond_dim)
+      config.model.cond_dim,
+      None if cond_dim is None else self.model.cond_dim_embedding)
     
     self.register_buffer("logit_bias", torch.full((1, 1, 1), 0.0))
 
@@ -391,15 +442,26 @@ class DIT(nn.Module, huggingface_hub.PyTorchModelHubMixin):
     else:
       return  bias_dropout_add_scale_fused_inference
 
-  def forward(self, indices, sigma):
+  def forward(self, indices, sigma, cond=None):
     x = self.vocab_embed(indices)
     c = F.silu(self.sigma_map(sigma))
+
+    if self.cond_embed is not None:
+      cond = F.silu(self.cond_embed(cond))
+      # Apply condition dropout during training
+      if self.training and self.config.text_embedder.cond_dropout > 0:
+        # Create dropout mask
+        batch_size = cond.shape[0]
+        dropout_mask = torch.rand(batch_size, 1, device=cond.device) >= self.config.text_embedder.cond_dropout
+        cond = cond * dropout_mask.float()
+    else:
+      cond = None
 
     rotary_cos_sin = self.rotary_emb(x)
 
     for i in range(len(self.blocks)):
-      x = self.blocks[i](x, rotary_cos_sin, c, seqlens=None)
-    x = self.output_layer(x, c)
+      x = self.blocks[i](x, rotary_cos_sin, c, cond, seqlens=None)
+    x = self.output_layer(x, c, cond)
 
     x = x.scatter_add(-1, indices.unsqueeze(-1), self.logit_bias.to(x.dtype).expand_as(x))
 

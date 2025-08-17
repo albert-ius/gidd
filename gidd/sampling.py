@@ -23,7 +23,7 @@ class Sampler(nn.Module):
 
     @torch.no_grad()
     def generate(self, num_samples=1, num_denoising_steps=1000, max_length=None, decode=True, show_progress=True):
-        max_length = max_length or self.model.config.model.max_seq_len
+        max_length = max_length or self.model.config.max_seq_len
         device = next(self.model.parameters()).device
 
         z_t = self._do_generate(num_samples, num_denoising_steps, max_length, show_progress=show_progress, device=device)
@@ -178,12 +178,12 @@ class AutoregressiveSampler(Sampler):
 
 def get_sampler(config, model, tokenizer, noise_schedule: NoiseSchedule, compile_step=True, min_p=0.0):
     if config.model.type == "diffusion":
-        if config.model.forward_process == "ours":
+        if config.model.diffusion_process == "gidd":
             return GiddSampler(model, tokenizer, noise_schedule, t_eps=config.model.t_eps, compile_step=compile_step, min_p=min_p)
-        elif config.model.forward_process == "mdlm":
+        elif config.model.diffusion_process == "mdlm":
             return MDLMSampler(model, tokenizer, noise_schedule, t_eps=config.model.t_eps, compile_step=compile_step, min_p=min_p)
         else:
-            raise ValueError(f"Unsupported forward process: {config.model.forward_process}")
+            raise ValueError(f"Unsupported forward process: {config.model.diffusion_process}")
     elif config.model.type == "autoregressive":
         return AutoregressiveSampler(model, tokenizer, noise_schedule, compile_step=True)
     else:

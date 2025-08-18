@@ -372,6 +372,8 @@ class DDitFinalLayer(nn.Module):
       self.cond_embedding_modulation = nn.Linear(cond_dim_embedding,
                                                2 * hidden_size,
                                                bias=True)
+    else:
+      self.cond_embedding_modulation = None
 
 
   def forward(self, x, c, cond=None):

@@ -4,6 +4,8 @@ import torch.distributed as dist
 
 from gidd.diffusion_process import sample_t, NoiseSchedule
 from gidd.loss import Loss
+import torch._dynamo
+torch._dynamo.config.suppress_errors = True
 
 
 class DiffusionTrainer(nn.Module):

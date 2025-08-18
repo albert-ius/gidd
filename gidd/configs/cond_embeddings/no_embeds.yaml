@@ -1,0 +1,4 @@
+use_text_embedder: False
+cond_dim_embedding: 384 
+model_name: None # nvidia/NV-Embed-v2, sentence-transformers/all-MiniLM-L6-v2
+cond_dropout: 0.0

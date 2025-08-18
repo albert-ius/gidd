@@ -396,20 +396,20 @@ class DDitFinalLayer(nn.Module):
 
 
 class DIT(nn.Module, huggingface_hub.PyTorchModelHubMixin):
-  def __init__(self, config, vocab_size: int, cond_dim: int = None):
+  def __init__(self, config, vocab_size: int, text_cond_dim: int = None, from_checkpoint=False):
     super().__init__()
     if type(config) == dict:
       config = omegaconf.OmegaConf.create(config)
 
     self.config = config
     self.vocab_size = vocab_size
-    self.rounded_vocab_size = vocab_size + (128 - vocab_size % 128) % 128
+    self.rounded_vocab_size = vocab_size + ((128 - vocab_size % 128)) % 128 if not from_checkpoint else 0
 
     self.vocab_embed = EmbeddingLayer(config.model.hidden_size, self.rounded_vocab_size)
     self.sigma_map = TimestepEmbedder(config.model.cond_dim)
 
-    if cond_dim is not None:
-      self.cond_embed = nn.Linear(cond_dim, config.model.cond_dim_embedding)
+    if text_cond_dim is not None:
+      self.cond_embed = nn.Linear(text_cond_dim, config.model.cond_dim_embedding)
     else:
       self.cond_embed = None
 
@@ -423,7 +423,7 @@ class DIT(nn.Module, huggingface_hub.PyTorchModelHubMixin):
       blocks.append(DDiTBlock(config.model.hidden_size,
                               config.model.n_heads,
                               config.model.cond_dim,
-                              None if cond_dim is None else self.model.cond_dim_embedding,
+                              None if text_cond_dim is None else config.model.cond_dim_embedding,
                               dropout=config.model.dropout))
     self.blocks = nn.ModuleList(blocks)
 
@@ -431,7 +431,7 @@ class DIT(nn.Module, huggingface_hub.PyTorchModelHubMixin):
       config.model.hidden_size,
       self.rounded_vocab_size,
       config.model.cond_dim,
-      None if cond_dim is None else self.model.cond_dim_embedding)
+      None if text_cond_dim is None else config.model.cond_dim_embedding)
     
     self.register_buffer("logit_bias", torch.full((1, 1, 1), 0.0))
 

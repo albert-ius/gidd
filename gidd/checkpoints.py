@@ -46,14 +46,14 @@ def save_checkpoint(path, trainer: DiffusionTrainer, optimizer, state: TrainingS
         json.dump(asdict(state), f)
 
 
-def load_checkpoint(path, device=None):
+def load_checkpoint(path, device=None, strict=True):
     config = OmegaConf.load(Path(path, "config.yaml"))
 
     tokenizer = AutoTokenizer.from_pretrained(path)
 
     model_state_dict = torch.load(Path(path, "model.pt"), map_location="cpu", weights_only=True)
     model = get_model(config, tokenizer, device="cpu")
-    model.load_state_dict(model_state_dict)
+    model.load_state_dict(model_state_dict, strict=strict)
     if device is not None:
         model.to(device)
 
@@ -93,6 +93,25 @@ def load_checkpoint_for_training(path, config=None, device=None, dtype=None):
         state = TrainingState(**json.load(f))
     # return everything
     return model, noise_schedule, tokenizer, old_config, trainer, optimizer, state
+
+
+def load_checkpoint_for_fine_tune(path, config=None, device=None, dtype=None):
+    # load model, noise_schedule, tokenizer, trainer, optimizer
+    model, noise_schedule, tokenizer, old_config = load_checkpoint(path, device=None, strict=False)
+    if config is None:
+        # use the config from the checkpoint if none is provided
+        config = old_config
+    if device:
+        noise_schedule.to(device)
+    # initialize trainer
+    loss_fn = get_loss(config, tokenizer, noise_schedule)
+    trainer = get_trainer(config, model, tokenizer, noise_schedule, loss_fn, dtype=dtype)
+    if device:
+        trainer.to(device)
+    # initialize and load optimizer state
+    optimizer = get_optimizer(config, trainer)
+
+    return model, noise_schedule, tokenizer, trainer, optimizer
 
 
 def save_rng_state(path: Path, rank: int):

@@ -1,0 +1,36 @@
+defaults:
+  - logging: default
+  - data: owt
+  - model: small_cond_emb
+  - optimizer: adam
+  - cond_embeddings: embeds
+  - _self_
+
+path: ???
+
+model:
+  type: diffusion
+  diffusion_process: gidd
+  p_uniform: 0.0
+  t_eps: 1e-4
+
+training:
+  resume: null
+  fine_tune: True
+  seed: 1
+  train_batch_size: 64
+  eval_batch_size: 64
+  num_train_steps: 10_000
+  lr_schedule: cosine
+  warmup_steps: 1000
+  low_discrepancy_sampling: True
+  dtype: bf16
+  compile_model: True
+
+loss:
+  loss_type: gidd
+  loss_weighting: dynamic  # [dynamic, clip, none]
+  min_loss_weight: 0.0
+  max_loss_weight: 2.0
+  loss_scale: 1.0
+  reduction: tokenmean

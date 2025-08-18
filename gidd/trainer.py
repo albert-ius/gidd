@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.distributed as dist
+import embeddings
 
 from gidd.diffusion_process import sample_t, NoiseSchedule
 from gidd.loss import Loss
@@ -20,6 +21,17 @@ class DiffusionTrainer(nn.Module):
 
         self.device = next(model.parameters()).device
 
+        self.condition_on_text_embeds = False
+
+        if self.config.cond_embeddings.use_text_embedder:
+            # Note: TextEmbedder is not an nn.Module to keep its parameters frozen
+            # during training. Device movement is handled
+            # manually in training hooks.
+            self.condition_on_text_embeds = True
+            self.text_embedder = embeddings.TextEmbedder(
+                model_name=self.config.cond_embeddings.model_name, device=self.device)
+            self.text_condition_dim = self.config.cond_embeddings.text_condition_dim
+
         self.register_buffer("pad_id", torch.tensor(tokenizer.pad_token_id, device=self.device, dtype=torch.long))
         self.register_buffer("mask_id", torch.tensor(tokenizer.mask_token_id, device=self.device, dtype=torch.long))
         self.register_buffer("t0", torch.zeros(1, device=self.device))
@@ -28,6 +40,8 @@ class DiffusionTrainer(nn.Module):
     def to(self, device=None, dtype=None):
         self.device = device if device else self.device
         self.dtype = dtype if dtype else self.dtype
+        if device is not None:
+            self._move_text_embedder_to_device(device)
         return super().to(device, dtype)
 
     def forward(self, batch):
@@ -36,6 +50,13 @@ class DiffusionTrainer(nn.Module):
         with torch.autocast(device_type=self.device.type, dtype=self.dtype):
             t = sample_t(self.config, batch_size, device=self.device)
             z_t = self.noise_schedule.sample_zt(batch["input_ids"], t)
+
+            if self.condition_on_text_embeds:
+                cond_text = self.tokenizer.decode(batch["input_ids"])
+                cond = self.text_embedder(cond_text)
+                logits = self.model(z_t, t, cond=cond)
+            else:
+                logits = self.model(z_t, t)
 
             logits = self.model(z_t, t)
             loss, _, metrics = self.loss_fn.forward(
@@ -47,6 +68,11 @@ class DiffusionTrainer(nn.Module):
                 reduction=self.config.loss.reduction,
             )
         return loss, metrics
+    
+    def _move_text_embedder_to_device(self, device):
+        """Move text embedder to the current device."""
+        if self.condition_on_text_embeds and self.text_embedder is not None:
+            self.text_embedder.model = self.text_embedder.model.to(device)
 
 
 class AutoregressiveTrainer(nn.Module):

@@ -451,10 +451,10 @@ class DIT(nn.Module, huggingface_hub.PyTorchModelHubMixin):
     if self.cond_embed is not None:
       cond = F.silu(self.cond_embed(cond))
       # Apply condition dropout during training
-      if self.training and self.config.text_embedder.cond_dropout > 0:
+      if self.training and self.config.cond_embeddings.cond_dropout > 0:
         # Create dropout mask
         batch_size = cond.shape[0]
-        dropout_mask = torch.rand(batch_size, 1, device=cond.device) >= self.config.text_embedder.cond_dropout
+        dropout_mask = torch.rand(batch_size, 1, device=cond.device) >= self.config.cond_embeddings.cond_dropout
         cond = cond * dropout_mask.float()
     else:
       cond = None

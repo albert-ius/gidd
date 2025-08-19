@@ -52,13 +52,15 @@ class DiffusionTrainer(nn.Module):
             z_t = self.noise_schedule.sample_zt(batch["input_ids"], t)
 
             if self.condition_on_text_embeds:
-                cond_text = self.tokenizer.decode(batch["input_ids"])
-                cond = self.text_embedder(cond_text)
+                with torch.no_grad():
+                    cond_text = self.tokenizer.batch_decode(batch["input_ids"], skip_special_tokens=True)
+                    cond = self.text_embedder(cond_text)
+                    if isinstance(cond, torch.Tensor):
+                        cond = cond.to(self.device)
                 logits = self.model(z_t, t, cond=cond)
             else:
                 logits = self.model(z_t, t)
 
-            logits = self.model(z_t, t)
             loss, _, metrics = self.loss_fn.forward(
                 logits=logits,
                 input_ids=batch["input_ids"],
@@ -72,7 +74,8 @@ class DiffusionTrainer(nn.Module):
     def _move_text_embedder_to_device(self, device):
         """Move text embedder to the current device."""
         if self.condition_on_text_embeds and self.text_embedder is not None:
-            self.text_embedder.model = self.text_embedder.model.to(device)
+            self.text_embedder = self.text_embedder.to(device)
+            #self.text_embedder.tokenizer = self.text_embedder.tokenizer.to(device)
 
 
 class AutoregressiveTrainer(nn.Module):

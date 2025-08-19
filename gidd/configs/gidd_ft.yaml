@@ -25,7 +25,7 @@ training:
   warmup_steps: 1000
   low_discrepancy_sampling: True
   dtype: bf16
-  compile_model: True
+  compile_model: False
 
 loss:
   loss_type: gidd

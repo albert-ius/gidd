@@ -4,4 +4,4 @@ cond_dim: 128
 n_blocks: 12
 n_heads: 12
 dropout: 0.0
-max_seq_len: 512
+max_seq_len: 256

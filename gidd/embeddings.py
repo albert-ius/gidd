@@ -68,3 +68,8 @@ class TextEmbedder:
         assert len(sentence_embeddings.shape) == 2
 
         return sentence_embeddings
+    
+    def to(self, device):
+        self.model = self.model.to(device)
+        self.device = device
+        return self

@@ -18,6 +18,7 @@ from gidd.models.dit import DIT
 from gidd.checkpoints import (
     save_checkpoint,
     load_checkpoint_for_training,
+    load_checkpoint_for_fine_tune,
     TrainingState,
     save_rng_state,
     load_rng_state,
@@ -117,15 +118,31 @@ def main(config):
             step=0,
         )
     else:
-        (
-            model,
-            noise_schedule,
-            tokenizer,
-            old_config,
-            trainer,
-            optimizer,
-            state
-        ) = load_checkpoint_for_training(config.training.resume, device=device, dtype=dtype)
+        if config.training.fine_tune is None:
+            (
+                model,
+                noise_schedule,
+                tokenizer,
+                old_config,
+                trainer,
+                optimizer,
+                state
+            ) = load_checkpoint_for_training(config.training.resume, device=device, dtype=dtype)
+        else:
+            ckpt_path = hydra.utils.to_absolute_path(config.path)
+            state = TrainingState(
+                epoch=0,
+                epoch_start_step=0,
+                step=0,
+            )
+            (
+                model,
+                noise_schedule,
+                tokenizer,
+                trainer,
+                optimizer,
+            ) = load_checkpoint_for_fine_tune(ckpt_path, config, device=device, dtype=dtype)
+
 
     with main_process_first():
         train_dl, test_dl = get_dataloaders(config, tokenizer)

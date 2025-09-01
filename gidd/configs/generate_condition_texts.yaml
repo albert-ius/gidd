@@ -1,0 +1,7 @@
+defaults:
+  - data: owt
+  - model: small_cond_emb
+batch_size: 64
+num_samples: 4096
+random_seed: 1
+samples_path: ???

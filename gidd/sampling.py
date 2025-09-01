@@ -10,23 +10,27 @@ from gidd.utils import sample_categorical
 
 
 class Sampler(nn.Module):
-    def __init__(self, model, tokenizer, noise_schedule: NoiseSchedule, t_eps: float = 1e-4):
+    def __init__(self, model, tokenizer, noise_schedule: NoiseSchedule, t_eps: float = 1e-4, cond_texts_embedder = None):
         super().__init__()
         self.model = model
         self.tokenizer = tokenizer
         self.noise_schedule = noise_schedule
         self.t_eps = t_eps
+        self.cond_texts_embedder = cond_texts_embedder
 
     @abstractmethod
-    def _do_generate(self, num_samples, num_denoising_steps, max_length, show_progress=False, device=None):
+    def _do_generate(self, num_samples, num_denoising_steps, max_length, show_progress=False, device=None, cond_texts=None):
         raise NotImplementedError
 
     @torch.no_grad()
-    def generate(self, num_samples=1, num_denoising_steps=1000, max_length=None, decode=True, show_progress=True):
-        max_length = max_length or self.model.config.model.max_seq_len
+    def generate(self, num_samples=1, num_denoising_steps=1000, max_length=None, decode=True, show_progress=True, cond_texts=None):
+        max_length = max_length or self.model.config.max_seq_len
         device = next(self.model.parameters()).device
 
-        z_t = self._do_generate(num_samples, num_denoising_steps, max_length, show_progress=show_progress, device=device)
+        if cond_texts is not None:
+            cond_texts_embeds = self.cond_texts_embedder(cond_texts)
+
+        z_t = self._do_generate(num_samples, num_denoising_steps, max_length, show_progress=show_progress, device=device, cond_texts_embeds=cond_texts_embeds)
 
         if decode:
             texts = self.tokenizer.batch_decode(z_t, skip_special_tokens=True)
@@ -44,8 +48,8 @@ class GiddSampler(Sampler):
             self.tokenizer = tokenizer
             self.min_p = min_p
 
-        def forward(self, z_t, t, s):
-            logits = self.model(z_t, t)
+        def forward(self, z_t, t, s, cond=None):
+            logits = self.model(z_t, t, cond)
             logits[..., self.tokenizer.mask_token_id] = -1e6
 
             # if i > 0:
@@ -76,15 +80,19 @@ class GiddSampler(Sampler):
         if compile_step:
             self.sampling_step = torch.compile(self.sampling_step)
 
-    def _do_generate(self, num_samples, num_denoising_steps, max_length, show_progress=False, device=None):
+    def _do_generate(self, num_samples, num_denoising_steps, max_length, show_progress=False, device=None, cond_texts_embeds=None):
 
         ts = torch.linspace(0, 1, num_denoising_steps + 1, device=device).unsqueeze(-1)
         ts = (1 - 2 * self.t_eps) * ts + self.t_eps
 
+
+        if cond_texts_embeds is not None and isinstance(cond_texts_embeds, torch.Tensor):
+            cond_texts_embeds=cond_texts_embeds.to(device)
+
         # zt = sample_categorical(p_zt)
         z_t = self.noise_schedule.sample_prior((num_samples, max_length)).to(device, non_blocking=True)
         for i in tqdm.trange(num_denoising_steps - 1, -1, -1, desc="Generating samples", disable=not show_progress, dynamic_ncols=True):
-            z_t = self.sampling_step(z_t, ts[i], ts[max(0, i-1)]).clone()
+            z_t = self.sampling_step(z_t, ts[i], ts[max(0, i-1)], cond_texts_embeds).clone()
         return z_t
 
 
@@ -137,7 +145,7 @@ class MDLMSampler(Sampler):
         if compile_step:
             self.sampling_step = torch.compile(self.sampling_step)
 
-    def _do_generate(self, num_samples, num_denoising_steps, max_length, show_progress=False, device=None):
+    def _do_generate(self, num_samples, num_denoising_steps, max_length, show_progress=False, device=None, cond_texts_embeds=None):
         z_t = self.noise_schedule.sample_prior((num_samples, max_length)).to(device, non_blocking=True)
 
         ts = torch.linspace(self.t_eps, 1 - self.t_eps, num_denoising_steps + 1, device=device).unsqueeze(-1)
@@ -154,7 +162,7 @@ class AutoregressiveSampler(Sampler):
         if compile_step:
             self.model = torch.compile(model)
 
-    def _do_generate(self, num_samples, num_denoising_steps, max_length, show_progress=False, device=None):
+    def _do_generate(self, num_samples, num_denoising_steps, max_length, show_progress=False, device=None, cond_texts_embeds=None):
         bos_token_id = self.tokenizer.cls_token_id or self.tokenizer.bos_token_id
         eos_token_id = self.tokenizer.sep_token_id or self.tokenizer.eos_token_id
 
@@ -178,12 +186,12 @@ class AutoregressiveSampler(Sampler):
 
 def get_sampler(config, model, tokenizer, noise_schedule: NoiseSchedule, compile_step=True, min_p=0.0):
     if config.model.type == "diffusion":
-        if config.model.forward_process == "ours":
+        if config.model.diffusion_process == "gidd":
             return GiddSampler(model, tokenizer, noise_schedule, t_eps=config.model.t_eps, compile_step=compile_step, min_p=min_p)
-        elif config.model.forward_process == "mdlm":
+        elif config.model.diffusion_process == "mdlm":
             return MDLMSampler(model, tokenizer, noise_schedule, t_eps=config.model.t_eps, compile_step=compile_step, min_p=min_p)
         else:
-            raise ValueError(f"Unsupported forward process: {config.model.forward_process}")
+            raise ValueError(f"Unsupported forward process: {config.model.diffusion_process}")
     elif config.model.type == "autoregressive":
         return AutoregressiveSampler(model, tokenizer, noise_schedule, compile_step=True)
     else:

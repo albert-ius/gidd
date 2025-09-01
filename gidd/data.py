@@ -35,6 +35,19 @@ def get_dataset(config, num_proc=32):
     return train_ds, test_ds
 
 
+def get_test_dataset(config, num_proc=32):
+    test_size = int(config.data.test_size)
+    n_proc = min(os.cpu_count(), num_proc)
+    test_ds = load_dataset(
+        config.data.dataset_name,
+        config.data.dataset_subset,
+        split=f"train[-{test_size}:]",
+        trust_remote_code=config.data.trust_remote_code,
+        num_proc=n_proc,
+    )
+
+    return test_ds
+
 def cached_dataset(cache_dir: str, file_name: str, generate_fn: Callable[[], Dataset]) -> Dataset:
     if cache_dir is None:
         return generate_fn()
@@ -217,3 +230,51 @@ def get_dataloaders(config, tokenizer, train_batch_size=None, eval_batch_size=No
     test_dl = _get_dataloader(config, test_ds, shuffle=False, drop_last=False, batch_size=eval_batch_size, collate_fn=collate_fn)
 
     return train_dl, test_dl
+
+
+def get_shuffled_test_dataloader(config, tokenizer, test_batch_size, random_seed):
+    test_ds = get_test_dataset(config)
+
+    if config.data.pre_tokenize:
+        max_seq_len = config.model.max_seq_len
+        sequence_packing = config.data.sequence_packing
+        cache_key = hashlib.sha256(
+            json.dumps(
+                {
+                    "dataset_name": config.data.dataset_name,
+                    "subset": config.data.dataset_subset,
+                    "tokenizer_name": config.data.tokenizer_name,
+                    "max_seq_len": max_seq_len,
+                    "sequence_packing": sequence_packing,
+                },
+                sort_keys=True,
+            ).encode()
+        ).hexdigest()
+        test_ds = cached_dataset(
+            cache_dir=hydra.utils.to_absolute_path(config.data.cache_dir),
+            file_name=f"cache-{config.data.dataset_name.replace('/', '--')}-test-{cache_key}",
+            generate_fn=functools.partial(tokenize_dataset, ds=test_ds, tokenizer=tokenizer, max_seq_len=max_seq_len, sequence_packing=sequence_packing),
+        )
+
+        collate_fn = functools.partial(pretokenized_collator, pad_token_id=tokenizer.pad_token_id, tokens_key="input_ids")
+    else:
+        if config.data.sequence_packing:
+            raise ValueError("Sequence packing requires pre-tokenization.")
+
+        collate_fn = functools.partial(subsample_collator, config, tokenizer, text_key="text")
+
+    generator = torch.Generator()
+    generator.manual_seed(random_seed)
+    test_dl = DataLoader(
+        test_ds,
+        collate_fn=collate_fn,
+        batch_size=test_batch_size,
+        drop_last=False,
+        num_workers=config.data.num_workers,
+        shuffle=True,
+        generator=generator,
+        pin_memory=True,
+        persistent_workers=True,
+    )
+
+    return test_dl

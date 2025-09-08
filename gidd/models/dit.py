@@ -403,7 +403,7 @@ class DIT(nn.Module, huggingface_hub.PyTorchModelHubMixin):
 
     self.config = config
     self.vocab_size = vocab_size
-    self.rounded_vocab_size = vocab_size + ((128 - vocab_size % 128)) % 128 if not from_checkpoint else 0
+    self.rounded_vocab_size = vocab_size
 
     self.vocab_embed = EmbeddingLayer(config.model.hidden_size, self.rounded_vocab_size)
     self.sigma_map = TimestepEmbedder(config.model.cond_dim)

@@ -21,7 +21,7 @@ def main(args):
 
     ckpt_path = hydra.utils.to_absolute_path(args.path)
 
-    model, noise_schedule, tokenizer, config = load_checkpoint(ckpt_path, device=device)
+    model, noise_schedule, tokenizer, config, cond_text_embedder = load_checkpoint(ckpt_path, device=device)
     if args.use_gpt2:
         model = AutoModelForCausalLM.from_pretrained("gpt2")
     model.eval()

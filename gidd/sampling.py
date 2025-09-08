@@ -10,7 +10,7 @@ from gidd.utils import sample_categorical
 
 
 class Sampler(nn.Module):
-    def __init__(self, model, tokenizer, noise_schedule: NoiseSchedule, t_eps: float = 1e-4, cond_texts_embedder = None):
+    def __init__(self, model, tokenizer, noise_schedule: NoiseSchedule, t_eps: float = 1e-4, cond_texts_embedder=None):
         super().__init__()
         self.model = model
         self.tokenizer = tokenizer
@@ -24,7 +24,7 @@ class Sampler(nn.Module):
 
     @torch.no_grad()
     def generate(self, num_samples=1, num_denoising_steps=1000, max_length=None, decode=True, show_progress=True, cond_texts=None):
-        max_length = max_length or self.model.config.max_seq_len
+        max_length = max_length or self.model.config.model.max_seq_len
         device = next(self.model.parameters()).device
 
         if cond_texts is not None:
@@ -74,8 +74,8 @@ class GiddSampler(Sampler):
                 q_st = q_st / q_st.sum(-1, keepdim=True)
             return sample_categorical(q_st)
 
-    def __init__(self, model, tokenizer, noise_schedule: NoiseSchedule, t_eps=1e-4, compile_step=True, min_p=0.0):
-        super().__init__(model, tokenizer, noise_schedule, t_eps=t_eps)
+    def __init__(self, model, tokenizer, noise_schedule: NoiseSchedule, t_eps=1e-4, compile_step=True, min_p=0.0, cond_texts_embedder=None):
+        super().__init__(model, tokenizer, noise_schedule, t_eps=t_eps, cond_texts_embedder=cond_texts_embedder)
         self.sampling_step = self.DenoisingStep(model, noise_schedule, tokenizer, min_p=min_p)
         if compile_step:
             self.sampling_step = torch.compile(self.sampling_step)
@@ -184,10 +184,10 @@ class AutoregressiveSampler(Sampler):
         return input_ids
 
 
-def get_sampler(config, model, tokenizer, noise_schedule: NoiseSchedule, compile_step=True, min_p=0.0):
+def get_sampler(config, model, tokenizer, noise_schedule: NoiseSchedule, compile_step=True, min_p=0.0, cond_texts_embedder=None):
     if config.model.type == "diffusion":
         if config.model.diffusion_process == "gidd":
-            return GiddSampler(model, tokenizer, noise_schedule, t_eps=config.model.t_eps, compile_step=compile_step, min_p=min_p)
+            return GiddSampler(model, tokenizer, noise_schedule, t_eps=config.model.t_eps, compile_step=compile_step, min_p=min_p, cond_texts_embedder=cond_texts_embedder)
         elif config.model.diffusion_process == "mdlm":
             return MDLMSampler(model, tokenizer, noise_schedule, t_eps=config.model.t_eps, compile_step=compile_step, min_p=min_p)
         else:

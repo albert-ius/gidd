@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.distributed as dist
-import embeddings
+import gidd.embeddings as embeddings
 
 from gidd.diffusion_process import sample_t, NoiseSchedule
 from gidd.loss import Loss

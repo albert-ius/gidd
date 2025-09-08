@@ -14,6 +14,7 @@ from gidd.modeling import get_model
 from gidd.trainer import DiffusionTrainer, get_trainer
 from gidd.loss import get_loss
 from gidd.optimizer import get_optimizer
+from gidd.embeddings import TextEmbedder
 
 
 @dataclass
@@ -67,8 +68,14 @@ def load_checkpoint(path, device=None, strict=True):
             noise_schedule.to(device)
     else:
         noise_schedule = None
+
+    cond_text_embedder = None
+
+    if hasattr(config, "cond_embeddings") and config.cond_embeddings.use_text_embedder:
+        cond_text_embedder = TextEmbedder(config.cond_embeddings.model_name)
+        cond_text_embedder.to(device)
     
-    return model, noise_schedule, tokenizer, config
+    return model, noise_schedule, tokenizer, config, cond_text_embedder
 
 
 def load_checkpoint_for_training(path, config=None, device=None, dtype=None):
@@ -97,7 +104,7 @@ def load_checkpoint_for_training(path, config=None, device=None, dtype=None):
 
 def load_checkpoint_for_fine_tune(path, config=None, device=None, dtype=None):
     # load model, noise_schedule, tokenizer, trainer, optimizer
-    model, noise_schedule, tokenizer, old_config = load_checkpoint(path, device=None, strict=False)
+    model, noise_schedule, tokenizer, old_config = load_checkpoint(path, device=None)
     if config is None:
         # use the config from the checkpoint if none is provided
         config = old_config

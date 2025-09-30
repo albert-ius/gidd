@@ -23,7 +23,7 @@ class DiffusionTrainer(nn.Module):
 
         self.condition_on_text_embeds = False
 
-        if self.config.cond_embeddings.use_text_embedder:
+        if hasattr(self.config, "cond_embeddings") and self.config.cond_embeddings.use_text_embedder:
             # Note: TextEmbedder is not an nn.Module to keep its parameters frozen
             # during training. Device movement is handled
             # manually in training hooks.

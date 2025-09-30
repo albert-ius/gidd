@@ -27,8 +27,10 @@ class Sampler(nn.Module):
         max_length = max_length or self.model.config.model.max_seq_len
         device = next(self.model.parameters()).device
 
-        if cond_texts is not None:
+        if cond_texts is not None and self.cond_texts_embedder is not None:
             cond_texts_embeds = self.cond_texts_embedder(cond_texts)
+        else:
+            cond_texts_embeds = None
 
         z_t = self._do_generate(num_samples, num_denoising_steps, max_length, show_progress=show_progress, device=device, cond_texts_embeds=cond_texts_embeds)
 

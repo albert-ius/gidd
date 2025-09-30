@@ -16,18 +16,24 @@ from torch.utils.data.distributed import DistributedSampler
 
 def get_dataset(config, num_proc=32):
     test_size = int(config.data.test_size)
+    if config.data.dataset_name == 'openwebtext-split':
+        train_split = "train"
+        test_split = "test"
+    else:
+        train_split = f"train[:-{test_size}]"
+        test_split = f"train[-{test_size}:]"
     n_proc = min(os.cpu_count(), num_proc)
     train_ds = load_dataset(
         config.data.dataset_name,
         config.data.dataset_subset,
-        split=f"train[:-{test_size}]",
+        split=train_split,
         trust_remote_code=config.data.trust_remote_code,
         num_proc=n_proc,
     )
     test_ds = load_dataset(
         config.data.dataset_name,
         config.data.dataset_subset,
-        split=f"train[-{test_size}:]",
+        split=test_split,
         trust_remote_code=config.data.trust_remote_code,
         num_proc=n_proc,
     )

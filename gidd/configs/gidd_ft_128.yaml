@@ -1,9 +1,9 @@
 defaults:
   - logging: default
   - data: owt
-  - model: small_cond_emb
+  - model: small_cond_128
   - optimizer: adam
-  - cond_embeddings: embeds
+  - cond_embeddings: no_embeds
   - _self_
 
 path: ???
@@ -11,7 +11,7 @@ path: ???
 model:
   type: diffusion
   diffusion_process: gidd
-  p_uniform: 0.0
+  p_uniform: 0.1
   t_eps: 1e-4
 
 training:
@@ -22,7 +22,7 @@ training:
   eval_batch_size: 64
   num_train_steps: 150_000
   lr_schedule: cosine
-  warmup_steps: 10_000
+  warmup_steps: 2500
   low_discrepancy_sampling: True
   dtype: bf16
   compile_model: False

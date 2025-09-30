@@ -4,3 +4,6 @@ num_samples: 16
 num_denoising_steps: 128
 min_p: 0.0
 samples_path: samples.pt
+use_emb_cond: false
+cond_texts_path: null
+output_format: pt

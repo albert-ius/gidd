@@ -1,0 +1,9 @@
+path: ???
+batch_size: 16
+num_samples: 16
+num_denoising_steps: 128
+min_p: 0.0
+samples_path: texts.json
+use_emb_cond: true
+cond_texts_path: ???
+output_format: json

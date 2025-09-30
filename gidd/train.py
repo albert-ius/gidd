@@ -101,34 +101,19 @@ def main(config):
     device = torch.device(f"cuda" if torch.cuda.is_available() else "cpu")
     print(f"Using {device=} and {dtype=}")
 
-    if config.training.resume is None:
-        tokenizer = get_tokenizer(config)
-
-        model = get_model(config, tokenizer, dtype=dtype)
-        noise_schedule = get_noise_schedule(config, tokenizer)
-        loss_fn = get_loss(config, tokenizer, noise_schedule)
-        trainer = get_trainer(config, model, tokenizer, noise_schedule, loss_fn, dtype)
-        trainer = trainer.to(device)
-
-        optimizer = get_optimizer(config, trainer)
-
-        state = TrainingState(
-            epoch=0,
-            epoch_start_step=0,
-            step=0,
-        )
+    if config.training.resume is not None and config.training.resume:
+        (
+            model,
+            noise_schedule,
+            tokenizer,
+            old_config,
+            trainer,
+            optimizer,
+            state
+        ) = load_checkpoint_for_training(config.training.resume, device=device, dtype=dtype)
     else:
-        if config.training.fine_tune is None:
-            (
-                model,
-                noise_schedule,
-                tokenizer,
-                old_config,
-                trainer,
-                optimizer,
-                state
-            ) = load_checkpoint_for_training(config.training.resume, device=device, dtype=dtype)
-        else:
+        print('Here!!!')
+        if config.training.fine_tune is not None and config.training.fine_tune:
             ckpt_path = hydra.utils.to_absolute_path(config.path)
             state = TrainingState(
                 epoch=0,
@@ -142,6 +127,22 @@ def main(config):
                 trainer,
                 optimizer,
             ) = load_checkpoint_for_fine_tune(ckpt_path, config, device=device, dtype=dtype)
+        else:
+            tokenizer = get_tokenizer(config)
+
+            model = get_model(config, tokenizer, dtype=dtype)
+            noise_schedule = get_noise_schedule(config, tokenizer)
+            loss_fn = get_loss(config, tokenizer, noise_schedule)
+            trainer = get_trainer(config, model, tokenizer, noise_schedule, loss_fn, dtype)
+            trainer = trainer.to(device)
+
+            optimizer = get_optimizer(config, trainer)
+
+            state = TrainingState(
+                epoch=0,
+                epoch_start_step=0,
+                step=0,
+            )
 
 
     with main_process_first():

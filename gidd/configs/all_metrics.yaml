@@ -1,11 +1,13 @@
 samples_path: ???
-validation_path: null
+validation_path: ???
 conditions_path: null
 metrics:
   - gen_ppl
+  - mauve
 model_tokenizer: gpt2
 pretrained_model: google/gemma-2-9b
 batch_size: 4
 metrics_path: metrics.json
 torch_compile: false
-input_format: pt
+input_format: json
+

@@ -1,0 +1,2 @@
+#!/usr/bin/bash
+python ../../../gidd/eval/generative_ppl.py samples_path='/home/vmeshchaninov/aiusupov/gidd-outputs/2025-09-08/eval-small/texts_1000.json' model_tokenizer=gpt2 pretrained_model=google/gemma-2-9b batch_size=4 metrics_path='/home/vmeshchaninov/aiusupov/gidd-outputs/2025-09-08/eval-small/metrics_1000.json' input_format='json'

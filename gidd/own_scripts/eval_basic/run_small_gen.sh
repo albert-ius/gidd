@@ -1,0 +1,2 @@
+#!/usr/bin/bash
+python ../../../gidd/eval/generate_samples.py --config-name generate hydra.run.dir='/home/vmeshchaninov/aiusupov/gidd-outputs/2025-09-08/eval-small-256ds/' path='/home/vmeshchaninov/aiusupov/gidd-checkpoints/gidd-small-pu-0.1' samples_path='/home/vmeshchaninov/aiusupov/gidd-outputs/2025-09-08/eval-small/texts_1000_256ds.json' num_samples=1000 output_format=json num_denoising_steps=256 batch_size=64

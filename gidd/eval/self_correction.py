@@ -32,7 +32,7 @@ def main(args):
 
     ckpt_path = hydra.utils.to_absolute_path(args.path)
 
-    model, noise_schedule, tokenizer, config = load_checkpoint(ckpt_path, device=device)
+    model, noise_schedule, tokenizer, config, cond_text_embedder = load_checkpoint(ckpt_path, device=device)
     model.eval()
     config.training.eval_batch_size = args.batch_size
     dtype = parse_dtype(config.training.dtype)

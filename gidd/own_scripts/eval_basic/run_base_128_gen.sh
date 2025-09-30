@@ -1,0 +1,2 @@
+#!/usr/bin/bash
+python ../../../gidd/eval/generate_samples.py --config-name generate path='/home/vmeshchaninov/aiusupov/gidd-checkpoints/gidd-train-128' hydra.run.dir='/home/vmeshchaninov/aiusupov/gidd-outputs/2025-09-15/train_128/' num_denoising_steps=256 num_samples=4096 output_format=json batch_size=16

@@ -28,8 +28,10 @@ def main(args):
             batch_size = len(batch['input_ids'])
             samples_sampled += batch_size
             pbar.update(batch_size)
+
+    enumerated_texts = {ind: text for ind, text in enumerate(all_texts)}
     with open(args.samples_path, 'w') as f:
-        json.dump(all_texts, f)
+        json.dump(enumerated_texts, f, indent=4)
         
 
 if __name__ == "__main__":

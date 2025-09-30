@@ -21,7 +21,7 @@ def get_tokenizer(config):
 
 def get_model(config, tokenizer, device=None, dtype=None):
     if config.model.type == "diffusion":
-        if config.cond_embeddings.use_text_embedder:
+        if hasattr(config, 'cond_embeddings') and config.cond_embeddings.use_text_embedder:
             model = dit.DIT(config, len(tokenizer), config.cond_embeddings.text_condition_dim)
         else:
             model = dit.DIT(config, len(tokenizer))

@@ -1,0 +1,2 @@
+#!/usr/bin/bash
+python ../../eval/generate_samples.py --config-name generate_with_embeds path='/home/vmeshchaninov/aiusupov/gidd-checkpoints/gidd-emb-train-09-08/' cond_texts_path='/home/vmeshchaninov/aiusupov/gidd-experiments/test/texts.txt' samples_path='/home/vmeshchaninov/aiusupov/gidd-outputs/2025-09-08/train_emb/texts.json' num_samples=1000 num_denoising_steps=256 batch_size=16 output_format=json
